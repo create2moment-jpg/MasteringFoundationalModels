@@ -1,0 +1,26 @@
+{
+  "_comment": "Shape of a BenchmarkRecord (model_lab.benchmarking.harness). Values below are placeholders, not measurements.",
+  "checkpoint_source": "https://huggingface.co/<org>/<repo>@<commit-sha> sha256:<file-hash>",
+  "config": {
+    "batch_size": 1,
+    "dataset": "nuscenes",
+    "extra": {"onnx_sha256": "<hash>", "engine_sha256": "<hash>", "trt_profile": "1x3x640x640"},
+    "input_desc": "1x3x640x640",
+    "iters": 200,
+    "model_id": "<registry id>",
+    "model_revision": "<commit-sha>",
+    "precision": "fp16",
+    "runtime": "tensorrt <version>",
+    "split": "val",
+    "warmup": 50
+  },
+  "config_hash": "<auto>",
+  "end_to_end": {"max_ms": null, "mean_ms": null, "min_ms": null, "p50_ms": null, "p90_ms": null, "p99_ms": null},
+  "environment": {"packages": {}, "platform": "<auto>", "processor": null, "python": "<auto>"},
+  "git_commit": "<auto>",
+  "metrics": {"mAP": null, "NDS": null},
+  "peak_python_mem_mb": null,
+  "stages": {"preprocess": {}, "forward": {}, "postprocess": {}},
+  "throughput_items_per_s": null,
+  "timestamp_utc": "<auto>"
+}

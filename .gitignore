@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Lab / recipe outputs and local notes
+outputs/
+notes/
+wandb/
+mlruns/
+runs/
+
+# Large or licensed artifacts: never commit
+data/
+datasets/
+ckpts/
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+*.onnx
+*.plan
+*.engine
+*.trt
+*.bin
+*.pcd
+*.bag
+*.mcap
+
+# Benchmark results: only commit records that back a registry claim (git add -f)
+benchmarks/results/*
+!benchmarks/results/.gitkeep
+
+# Secrets / env
+.env
+*.token
+.huggingface/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

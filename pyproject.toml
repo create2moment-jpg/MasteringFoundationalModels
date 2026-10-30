@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "model-lab"
+version = "0.1.0"
+description = "Autonomous-driving perception foundation-model mastery lab: registry, geometry, evaluation and benchmarking utilities."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "MasteringFoundationalModels contributors" }]
+# Core deps are deliberately small so the registry, geometry, metrics and CPU labs
+# run anywhere (CI, laptops, air-gapped boxes). Heavy ML stacks live in extras.
+dependencies = [
+    "numpy>=1.26",
+    "pydantic>=2.6,<3",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "types-PyYAML>=6.0",
+    "pre-commit>=3.7",
+]
+# Install torch separately first with the wheel index matching your CUDA version
+# (see docs/00_vision_and_roadmap.md#installation). These extras assume torch exists.
+vision = [
+    "transformers>=4.50",
+    "pillow>=10.0",
+    "timm>=1.0",
+]
+export = [
+    "onnx>=1.16",
+    "onnxruntime>=1.18",
+]
+
+[project.scripts]
+model-lab = "model_lab.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/model_lab"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "NPY"]
+# E741: `l, w, h` (box length/width/height) is the field-standard naming in 3D detection.
+ignore = ["RUF001", "RUF002", "RUF003", "E741"]
+
+[tool.ruff.lint.pycodestyle]
+# formatter wraps code at 100; allow long docstrings / URLs a little slack
+max-line-length = 110
+
+[tool.ruff.lint.per-file-ignores]
+"labs/**/*.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["src/model_lab"]
+
+[[tool.mypy.overrides]]
+module = ["torch.*", "transformers.*", "onnx.*", "onnxruntime.*", "PIL.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: needs network, model weights, GPU, or proprietary data (deselected by default in CI)",
+    "gpu: needs a CUDA device",
+]

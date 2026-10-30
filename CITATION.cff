@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this lab, please cite it as below, and cite the original papers of any model you use."
+title: "Autonomous-Driving Perception Foundation-Model Mastery Lab"
+type: software
+version: 0.1.0
+date-released: 2026-10-30
+repository-code: "https://github.com/create2moment-jpg/MasteringFoundationalModels"
+license: Apache-2.0
+authors:
+  - name: "MasteringFoundationalModels contributors"

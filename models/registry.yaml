@@ -1,0 +1,899 @@
+# Autonomous-driving perception model registry.
+#
+# Schema: src/model_lab/registry/schema.py (JSON Schema: models/registry.schema.json)
+# Validate: model-lab registry validate --check-schema-file
+#
+# Evidence rules (docs/02_model_selection_playbook.md#evidence-rules):
+#   * verification.status = verified_primary only when licence, weights location and
+#     key I/O facts were checked against a primary source on `last_verified`.
+#   * Facts recorded from prior knowledge are marked not_verified / PRIOR_KNOWLEDGE and
+#     live in the verification queue (`model-lab registry audit`).
+#   * Benchmarks: only numbers transcribed from a primary source are filled in; everything
+#     else is left null with a pointer. Nothing here is a local reproduction yet.
+#
+# Research session 2026-10-30: Hugging Face Hub API reachable via connector; github.com,
+# arxiv.org and vendor sites were NOT directly reachable from the build container, so
+# GitHub-hosted facts come from web-search snippets (SECONDARY) or prior knowledge.
+
+schema_version: 1
+research_baseline: 2026-10-30
+
+models:
+  # ---------------------------------------------------------------- image encoders
+  - id: dinov2-vitb14
+    name: DINOv2 ViT-B/14
+    aliases: [facebook/dinov2-base]
+    family: DINOv2
+    role: foundation_encoder
+    tasks: [image_features]
+    modalities: [camera_mono]
+    summary: >-
+      Self-supervised ViT image encoder (patch 14) whose frozen dense features transfer well
+      to detection, segmentation and depth; the default "strong frozen backbone" baseline.
+    paper: {title: "DINOv2: Learning Robust Visual Features without Supervision", year: 2023, arxiv: "2304.07193", url: "https://arxiv.org/abs/2304.07193"}
+    links:
+      code: https://github.com/facebookresearch/dinov2
+      model_card: https://huggingface.co/facebook/dinov2-base
+      weights: https://huggingface.co/facebook/dinov2-base
+    licensing:
+      code_license: Apache-2.0
+      weight_license: Apache-2.0
+      commercial_use: permissive
+      gated: false
+      notes: Weight licence from HF license tag (verified). Code licence from prior knowledge.
+    io_contract:
+      framework: PyTorch / transformers (AutoModel)
+      input: RGB float tensor (B, 3, H, W), H and W multiples of 14; ImageNet mean/std normalisation
+      output: last_hidden_state (B, 1 + (H/14)*(W/14), 768) – CLS token + patch tokens (no registers in this variant)
+      preprocessing: AutoImageProcessor default resizes/crops to 224; for driving images keep aspect ratio and use e.g. 518x924 or tile
+    pretraining:
+      data: LVD-142M curated web images (per paper)
+      domain_fit: generic_web_images
+      notes: Not driving data; ego-vehicle viewpoints, night and rain are under-represented. Validate on BDD100K/nuScenes crops before relying on it.
+    size: {params_m: 86.6, source: hub_metadata}
+    finetuning:
+      recipe_available: true
+      peft: supported
+      notes: Linear probe / frozen-encoder head is the first experiment; LoRA on attention via PEFT works for ViTs. See recipes/image_encoders.
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/facebook/dinov2-base"}
+      automotive_finetuned: {status: not_verified, notes: No official driving fine-tune known; search queue.}
+      quantized: {status: not_verified}
+      onnx_export: {status: requires_local_build, notes: "Standard ViT ops; export with torch.onnx (opset >= 17). Dynamic H/W requires interpolated position embeddings to trace cleanly."}
+      engine: {status: requires_local_build, notes: Build TensorRT engine from your ONNX for your GPU/TRT version.}
+    deployment:
+      export_formats: [onnx]
+      runtimes: [pytorch, onnxruntime, tensorrt]
+      known_traps:
+        - Position-embedding interpolation for non-224 inputs may be traced as a constant shape; export at deployment resolution.
+    recommendation_context: First frozen image encoder to try for camera perception research with a permissive licence.
+    card: cards/dinov2-vitb14.md
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: HF Hub API (license tag, params, task); remaining fields prior knowledge.
+      evidence:
+        - {claim: "Apache-2.0 weights, 86.6M params, image-feature-extraction", url: "https://huggingface.co/facebook/dinov2-base", source_type: hub_metadata, accessed: 2026-10-30}
+
+  - id: dinov3-vitb16
+    name: DINOv3 ViT-B/16 (distilled, LVD-1689M)
+    aliases: [facebook/dinov3-vitb16-pretrain-lvd1689m]
+    family: DINOv3
+    role: foundation_encoder
+    tasks: [image_features]
+    modalities: [camera_mono]
+    summary: >-
+      Successor to DINOv2 with a 7B teacher distilled into smaller ViTs/ConvNeXts; emphasises
+      high-quality dense features at high resolution.
+    paper: {title: "DINOv3", year: 2025, arxiv: "2508.10104", url: "https://arxiv.org/abs/2508.10104"}
+    links:
+      project: https://ai.meta.com/research/dinov3/
+      code: https://github.com/facebookresearch/dinov3
+      model_card: https://huggingface.co/facebook/dinov3-vitb16-pretrain-lvd1689m
+      weights: https://huggingface.co/facebook/dinov3-vitb16-pretrain-lvd1689m
+    licensing:
+      weight_license: DINOv3 License (custom, HF tag "other")
+      commercial_use: unclear_legal_review
+      gated: true
+      notes: Gated on HF (access request required). Custom licence text not read in this session – legal review before commercial use.
+    io_contract:
+      framework: PyTorch / transformers (AutoModel, dinov3_vit)
+      input: RGB (B, 3, H, W), H and W multiples of 16
+      output: CLS + register tokens + patch tokens (verify count of registers on the model card)
+    pretraining:
+      data: LVD-1689M web images (from checkpoint name); distilled from facebook/dinov3-vit7b16-pretrain-lvd1689m (HF base_model tag)
+      domain_fit: generic_web_images
+    size: {params_m: 85.7, source: hub_metadata}
+    finetuning: {recipe_available: true, peft: supported, notes: Same recipes as DINOv2 once access is granted.}
+    artifacts:
+      official_pretrained: {status: gated, url: "https://huggingface.co/facebook/dinov3-vitb16-pretrain-lvd1689m"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: requires_local_build}
+      engine: {status: requires_local_build}
+    deployment: {export_formats: [onnx], runtimes: [pytorch, onnxruntime, tensorrt]}
+    recommendation_context: Strong candidate to compare against DINOv2 in Lab 02 once licence terms are cleared.
+    caveats:
+      - Model card content could not be read (gated). Register-token count, normalisation and licence text are not verified.
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: HF Hub API metadata (gated flag, license tag, params, base_model tag).
+      evidence:
+        - {claim: "gated, license other, 85.7M params, distilled from vit7b16", url: "https://huggingface.co/facebook/dinov3-vitb16-pretrain-lvd1689m", source_type: hub_metadata, accessed: 2026-10-30}
+
+  - id: siglip2-base-p16-224
+    name: SigLIP 2 Base/16 @224
+    aliases: [google/siglip2-base-patch16-224]
+    family: SigLIP
+    role: foundation_encoder
+    tasks: [image_features]
+    modalities: [camera_mono, text]
+    summary: >-
+      Image-text (sigmoid-loss) dual encoder. Useful as a language-aligned image encoder
+      (open-vocabulary heads, retrieval, auto-labelling) rather than as a dense detection backbone.
+    paper: {title: "SigLIP 2: Multilingual Vision-Language Encoders with Improved Semantic Understanding, Localization, and Dense Features", year: 2025, arxiv: "2502.14786", url: "https://arxiv.org/abs/2502.14786"}
+    links:
+      model_card: https://huggingface.co/google/siglip2-base-patch16-224
+      weights: https://huggingface.co/google/siglip2-base-patch16-224
+    licensing: {weight_license: Apache-2.0, commercial_use: permissive, gated: false}
+    io_contract:
+      framework: PyTorch / transformers (AutoModel, siglip)
+      input: image (B, 3, 224, 224) + tokenised text
+      output: image and text embeddings; patch tokens available from the vision tower
+    pretraining: {data: WebLI image-text pairs (per paper), domain_fit: generic_web_images}
+    size: {params_m: 375.2, source: hub_metadata}
+    finetuning: {recipe_available: false, peft: supported, notes: "375M is the full dual encoder; vision tower alone is ~86M."}
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/google/siglip2-base-patch16-224"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: requires_local_build}
+      engine: {status: requires_local_build}
+    recommendation_context: Language-aligned encoder for open-vocabulary experiments and data mining; not first choice for dense 3D.
+    caveats:
+      - "224 px input is far below typical driving camera resolution; small/distant objects vanish. Test NaFlex/higher-res variants."
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: HF Hub API metadata.
+      evidence:
+        - {claim: "Apache-2.0, 375.2M params", url: "https://huggingface.co/google/siglip2-base-patch16-224", source_type: hub_metadata, accessed: 2026-10-30}
+
+  - id: c-radiov3-b
+    name: C-RADIOv3-B
+    aliases: [nvidia/C-RADIOv3-B]
+    family: RADIO
+    role: foundation_encoder
+    tasks: [image_features]
+    modalities: [camera_mono]
+    summary: >-
+      Agglomerative encoder distilled from several teachers (e.g. CLIP/SigLIP-, DINO- and SAM-style
+      models) into one ViT; returns a summary token and dense spatial features at up to ~2K resolution.
+    paper: {title: "RADIOv2.5: Improved Baselines for Agglomerative Vision Foundation Models", year: 2025, arxiv: "2412.07679", url: "https://arxiv.org/abs/2412.07679"}
+    links:
+      code: https://github.com/NVlabs/RADIO
+      model_card: https://huggingface.co/nvidia/C-RADIOv3-B
+      weights: https://huggingface.co/nvidia/C-RADIOv3-B
+    licensing:
+      weight_license: NVIDIA Open Model License Agreement (June 2024)
+      commercial_use: conditional
+      gated: false
+      notes: Model card states "ready for commercial/non-commercial use" under the NVIDIA Open Model License; read the agreement.
+    io_contract:
+      framework: PyTorch / transformers with trust_remote_code=True
+      input: RGB, resolutions up to 2048 in increments of 16 (model card); CLIPImageProcessor
+      output: (summary (B, C), spatial_features (B, T, D)); reshape T to (H/16, W/16)
+    pretraining: {data: Multi-teacher distillation; data mix per paper, domain_fit: generic_web_images}
+    size: {params_m: 98.3, source: hub_metadata}
+    finetuning: {recipe_available: false, peft: unknown}
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/nvidia/C-RADIOv3-B"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: requires_local_build, notes: trust_remote_code model – inspect custom code before export.}
+      engine: {status: requires_local_build}
+    recommendation_context: High-resolution dense features; compare against DINOv2/v3 on far-range small objects.
+    caveats:
+      - "trust_remote_code executes repository code: pin a revision and review it."
+      - "Card says Base ~90M, HF metadata reports 98.3M (likely includes adaptor heads)."
+    verification:
+      last_verified: 2026-10-30
+      status: verified_primary
+      method: HF model card read (licence, I/O, resolution) + Hub metadata.
+      evidence:
+        - {claim: "NVIDIA Open Model License; commercial use stated; I/O contract; patch 16", url: "https://huggingface.co/nvidia/C-RADIOv3-B", source_type: model_card, accessed: 2026-10-30}
+
+  # ---------------------------------------------------------------- 2D detectors
+  - id: rt-detrv2-r50vd
+    name: RT-DETRv2 ResNet-50vd (COCO)
+    aliases: [PekingU/rtdetr_v2_r50vd]
+    family: RT-DETR
+    role: task_detector
+    tasks: [2d_detection]
+    modalities: [camera_mono]
+    summary: >-
+      Real-time DETR: CNN backbone + hybrid encoder + query decoder, NMS-free. Good latency/accuracy
+      trade-off and a clean export story because there is no NMS in the graph.
+    paper: {title: "RT-DETRv2: Improved Baseline with Bag-of-Freebies for Real-Time Detection Transformer", year: 2024, arxiv: "2407.17140", url: "https://arxiv.org/abs/2407.17140"}
+    links:
+      code: https://github.com/lyuwenyu/RT-DETR
+      model_card: https://huggingface.co/PekingU/rtdetr_v2_r50vd
+      weights: https://huggingface.co/PekingU/rtdetr_v2_r50vd
+    licensing:
+      code_license: Apache-2.0
+      weight_license: Apache-2.0
+      dataset_terms: Trained on COCO (images under Flickr terms; annotations CC BY 4.0)
+      commercial_use: permissive
+      gated: false
+    io_contract:
+      framework: PyTorch / transformers (RtDetrV2ForObjectDetection) or official repo
+      input: RGB (B, 3, 640, 640) default; processor rescales to [0,1] (no mean/std by default – check processor config)
+      output: logits (B, 300, num_classes) sigmoid scores + pred_boxes (B, 300, 4) normalised cxcywh
+      postprocessing: post_process_object_detection -> top-k by score; no NMS
+    pretraining: {data: COCO 2017 (80 classes), domain_fit: generic_detection_coco_like}
+    size: {params_m: 43.0, source: hub_metadata}
+    finetuning:
+      recipe_available: true
+      peft: experimental
+      notes: Full fine-tune on driving classes (BDD100K / nuImages) is the standard path; see recipes/2d_detection.
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/PekingU/rtdetr_v2_r50vd"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified, url: "https://github.com/lyuwenyu/RT-DETR", notes: "Official repo documents ONNX/TensorRT export scripts (prior knowledge; verify path & opset)."}
+      engine: {status: requires_local_build, notes: "Build with trtexec from ONNX; record TRT version, precision, profile."}
+    deployment:
+      export_formats: [onnx]
+      runtimes: [pytorch, onnxruntime, tensorrt]
+      known_traps:
+        - "Grid-sample / deformable attention ops: check opset and TensorRT plugin support."
+        - "INT8 PTQ of the decoder can cost noticeable AP; calibrate on driving images, not COCO."
+    recommendation_context: Default 2D driving-camera baseline in this repo (permissive, NMS-free, good export path).
+    card: cards/rt-detrv2-r50vd.md
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: HF Hub API metadata; export details prior knowledge.
+      evidence:
+        - {claim: "Apache-2.0, 43.0M params, COCO, RtDetrV2ForObjectDetection", url: "https://huggingface.co/PekingU/rtdetr_v2_r50vd", source_type: hub_metadata, accessed: 2026-10-30}
+
+  - id: yolo11-ultralytics
+    name: Ultralytics YOLO11
+    aliases: [yolo11n, yolo11s, yolo11m]
+    family: YOLO
+    role: task_detector
+    tasks: [2d_detection, 2d_segmentation]
+    modalities: [camera_mono]
+    summary: >-
+      Widely used one-stage CNN detector family with a turnkey train/export CLI (ONNX, TensorRT,
+      OpenVINO). Included as the low-latency reference point – mind the licence.
+    links:
+      code: https://github.com/ultralytics/ultralytics
+      project: https://docs.ultralytics.com/
+    licensing:
+      code_license: AGPL-3.0 (Enterprise licence offered by Ultralytics)
+      weight_license: AGPL-3.0 (per vendor; verify)
+      commercial_use: copyleft
+      notes: AGPL obligations extend to networked use of modified code. Legal review before any product use.
+    io_contract:
+      input: RGB letterboxed to 640x640 by default
+      output: dense anchor-free predictions -> NMS (in Ultralytics post-processing unless exported with NMS)
+    pretraining: {data: COCO, domain_fit: generic_detection_coco_like}
+    finetuning: {recipe_available: true, peft: unsupported}
+    artifacts:
+      official_pretrained: {status: not_verified, url: "https://github.com/ultralytics/ultralytics", notes: Weights auto-download via the package (release assets).}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified, notes: Vendor CLI offers INT8 export for some formats.}
+      onnx_export: {status: not_verified, notes: "`yolo export format=onnx` (vendor docs, prior knowledge)."}
+      engine: {status: requires_local_build}
+    deployment:
+      known_traps:
+        - "NMS outside the graph unless explicitly exported; letterbox padding must be undone exactly."
+    recommendation_context: Latency reference / prototyping. Prefer RT-DETRv2 when licence must be permissive.
+    caveats:
+      - Version naming moves fast (YOLOv8 -> YOLO11 -> newer). Re-verify the current release and licence at use time.
+    verification:
+      last_verified: 2026-10-30
+      status: not_verified
+      method: Prior knowledge only; github.com not reachable from build container.
+
+  - id: grounding-dino-base
+    name: Grounding DINO Base
+    aliases: [IDEA-Research/grounding-dino-base]
+    family: Grounding DINO
+    role: open_vocab_detector
+    open_vocabulary: true
+    tasks: [open_vocabulary_2d_detection]
+    modalities: [camera_mono, text]
+    summary: >-
+      Text-prompted (grounded) detector: DINO detector fused with a BERT text encoder. Detects
+      categories named in a prompt; slow but valuable for auto-labelling and long-tail discovery.
+    paper: {title: "Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object Detection", year: 2023, arxiv: "2303.05499", url: "https://arxiv.org/abs/2303.05499"}
+    links:
+      code: https://github.com/IDEA-Research/GroundingDINO
+      model_card: https://huggingface.co/IDEA-Research/grounding-dino-base
+      weights: https://huggingface.co/IDEA-Research/grounding-dino-base
+    licensing: {code_license: Apache-2.0, weight_license: Apache-2.0, commercial_use: permissive, gated: false, notes: Check pretraining dataset terms for your use.}
+    io_contract:
+      framework: transformers (AutoModelForZeroShotObjectDetection)
+      input: image + text prompt "car. pedestrian. traffic cone." (lower-case, period-separated)
+      output: boxes with per-token logits; post_process_grounded_object_detection with box/text thresholds
+    pretraining: {data: "Detection + grounding + caption data (O365, GoldG, etc. per paper)", domain_fit: generic_detection_coco_like}
+    size: {params_m: 232.8, source: hub_metadata}
+    finetuning: {recipe_available: false, peft: experimental}
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/IDEA-Research/grounding-dino-base"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified, notes: Text branch + deformable attention complicate export; community exports exist (unverified).}
+      engine: {status: not_verified}
+    recommendation_context: Offline auto-labelling and rare-class mining, not on-vehicle real-time detection.
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: HF Hub API metadata.
+      evidence:
+        - {claim: "Apache-2.0, 232.8M params, zero-shot-object-detection", url: "https://huggingface.co/IDEA-Research/grounding-dino-base", source_type: hub_metadata, accessed: 2026-10-30}
+
+  - id: owlv2-base-p16-ensemble
+    name: OWLv2 Base/16 (ensemble)
+    aliases: [google/owlv2-base-patch16-ensemble]
+    family: OWL-ViT
+    role: open_vocab_detector
+    open_vocabulary: true
+    tasks: [open_vocabulary_2d_detection]
+    modalities: [camera_mono, text]
+    summary: CLIP-style ViT with per-patch box heads; open-vocabulary detection by text or image query, trained with self-training at web scale.
+    paper: {title: "Scaling Open-Vocabulary Object Detection", year: 2023, arxiv: "2306.09683", url: "https://arxiv.org/abs/2306.09683"}
+    links:
+      model_card: https://huggingface.co/google/owlv2-base-patch16-ensemble
+      weights: https://huggingface.co/google/owlv2-base-patch16-ensemble
+    licensing: {weight_license: Apache-2.0, commercial_use: permissive, gated: false}
+    io_contract:
+      framework: transformers (Owlv2ForObjectDetection)
+      input: image padded to square 960x960 + text queries
+      output: per-patch boxes + similarity logits per query
+    pretraining: {data: WebLI pseudo-labelled (per paper), domain_fit: generic_web_images}
+    size: {params_m: 155.0, source: hub_metadata}
+    finetuning: {recipe_available: false, peft: unknown}
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/google/owlv2-base-patch16-ensemble"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: requires_local_build}
+      engine: {status: not_verified}
+    recommendation_context: Compare with Grounding DINO for auto-labelling; simpler architecture, easier export.
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: HF Hub API metadata.
+      evidence:
+        - {claim: "Apache-2.0, 155.0M params", url: "https://huggingface.co/google/owlv2-base-patch16-ensemble", source_type: hub_metadata, accessed: 2026-10-30}
+
+  - id: sam2.1-hiera-large
+    name: SAM 2.1 Hiera-L
+    aliases: [facebook/sam2.1-hiera-large]
+    family: SAM
+    role: segmenter
+    tasks: [2d_segmentation]
+    modalities: [camera_mono]
+    summary: >-
+      Promptable image/video segmenter (points, boxes, masks). Class-agnostic: pair with a detector
+      (e.g. Grounding DINO) for labelled masks; video memory supports mask propagation for labelling.
+    paper: {title: "SAM 2: Segment Anything in Images and Videos", year: 2024, arxiv: "2408.00714", url: "https://arxiv.org/abs/2408.00714"}
+    links:
+      code: https://github.com/facebookresearch/sam2
+      model_card: https://huggingface.co/facebook/sam2.1-hiera-large
+      weights: https://huggingface.co/facebook/sam2.1-hiera-large
+    licensing: {weight_license: Apache-2.0, commercial_use: permissive, gated: false}
+    io_contract:
+      input: image (1024 long side) + prompts
+      output: masks + IoU predictions; not semantic/instance segmentation by itself
+    pretraining: {data: SA-1B + SA-V (per paper), domain_fit: generic_web_images}
+    size: {params_m: 224.4, source: hub_metadata}
+    finetuning: {recipe_available: false, peft: experimental}
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/facebook/sam2.1-hiera-large"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified}
+      engine: {status: not_verified}
+    recommendation_context: Labelling tool (box -> mask, video propagation), not an on-vehicle model.
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: HF Hub API metadata.
+      evidence:
+        - {claim: "Apache-2.0, 224.4M params, mask-generation", url: "https://huggingface.co/facebook/sam2.1-hiera-large", source_type: hub_metadata, accessed: 2026-10-30}
+
+  # ---------------------------------------------------------------- LiDAR 3D detectors
+  - id: pointpillars-openpcdet
+    name: PointPillars (OpenPCDet)
+    aliases: [pointpillars]
+    family: PointPillars
+    role: task_detector
+    tasks: [lidar_3d_detection]
+    modalities: [lidar]
+    summary: >-
+      Pillar encoder (PointNet per vertical column) scattered to a BEV pseudo-image, then a 2D CNN
+      + anchor head. No sparse convolution needed – the easiest LiDAR detector to deploy.
+    paper: {title: "PointPillars: Fast Encoders for Object Detection from Point Clouds", year: 2019, arxiv: "1812.05784", url: "https://arxiv.org/abs/1812.05784"}
+    links:
+      code: https://github.com/open-mmlab/OpenPCDet
+    licensing:
+      code_license: Apache-2.0
+      dataset_terms: "KITTI checkpoints: KITTI is CC BY-NC-SA 3.0; nuScenes checkpoints: nuScenes non-commercial terms."
+      commercial_use: unclear_legal_review
+      notes: Code permissive; released weights inherit dataset restrictions – treat as research-only.
+    io_contract:
+      framework: OpenPCDet (PyTorch, custom CUDA ops)
+      input: "(N, 4) x, y, z, intensity in LiDAR frame; KITTI range [0, -39.68, -3, 69.12, 39.68, 1], voxel 0.16x0.16x4"
+      output: 7-DoF boxes [x, y, z, l, w, h, yaw] (gravity centre), scores, labels
+      coordinate_convention: "x fwd, y left, z up; matches model_lab.data.geometry"
+      postprocessing: rotated NMS
+    pretraining: {data: KITTI or nuScenes (per config), domain_fit: automotive}
+    finetuning: {recipe_available: true, peft: unsupported, notes: Fine-tune with OpenPCDet configs; change point range/anchors for a new sensor.}
+    artifacts:
+      official_pretrained: {status: not_verified, url: "https://github.com/open-mmlab/OpenPCDet", notes: "Model-zoo table links checkpoints (prior knowledge + secondary)."}
+      automotive_finetuned: {status: community_conversion, url: "https://huggingface.co/torch-pointcloud/pointpillars.kitti.openpcdet", notes: Community re-upload of OpenPCDet KITTI weights; not official.}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_offered, notes: OpenPCDet ships no ONNX export; voxelization and scatter must be split out of the graph.}
+      engine: {status: not_verified, url: "https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution", notes: "NVIDIA CUDA-PointPillars (TensorRT) – prior knowledge, verify."}
+    deployment:
+      known_traps:
+        - Voxelization and pillar scatter are outside the ONNX graph; train/deploy voxelizers must match (max points, ordering).
+        - Anchors encode class size priors of the training dataset.
+    recommendation_context: First LiDAR baseline (Lab 05) and easiest TensorRT path.
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: Web search (secondary) for OpenPCDet licence and zoo; HF search for community weights.
+      evidence:
+        - {claim: "OpenPCDet Apache-2.0; PointPillars in model zoo; Waymo weights withheld", url: "https://gitee.com/mayix/OpenPCDet", source_type: secondary, accessed: 2026-10-30}
+        - {claim: "Community KITTI PointPillars weights", url: "https://huggingface.co/torch-pointcloud/pointpillars.kitti.openpcdet", source_type: hub_metadata, accessed: 2026-10-30}
+
+  - id: second-openpcdet
+    name: SECOND (OpenPCDet)
+    family: SECOND
+    role: task_detector
+    tasks: [lidar_3d_detection]
+    modalities: [lidar]
+    summary: First practical sparse-convolution 3D backbone for LiDAR detection; the ancestor of most voxel detectors.
+    paper: {title: "SECOND: Sparsely Embedded Convolutional Detection", year: 2018, url: "https://www.mdpi.com/1424-8220/18/10/3337"}
+    links: {code: "https://github.com/open-mmlab/OpenPCDet"}
+    licensing: {code_license: Apache-2.0, dataset_terms: KITTI CC BY-NC-SA 3.0 for KITTI weights, commercial_use: unclear_legal_review}
+    io_contract:
+      input: "(N, 4) points; voxel 0.05x0.05x0.1 on KITTI"
+      output: 7-DoF boxes
+    pretraining: {data: KITTI / nuScenes (per config), domain_fit: automotive}
+    finetuning: {recipe_available: true, peft: unsupported}
+    artifacts:
+      official_pretrained: {status: not_verified, url: "https://github.com/open-mmlab/OpenPCDet"}
+      automotive_finetuned: {status: community_conversion, url: "https://huggingface.co/torch-pointcloud/second.kitti.openpcdet"}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_offered, notes: Sparse conv needs custom plugins/ops.}
+      engine: {status: not_verified}
+    deployment:
+      known_traps: ["Sparse convolution (spconv) is not a standard ONNX op; requires TensorRT plugins or a vendor library."]
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: HF search for community weights; licence secondary.
+      evidence:
+        - {claim: "Community KITTI SECOND weights", url: "https://huggingface.co/torch-pointcloud/second.kitti.openpcdet", source_type: hub_metadata, accessed: 2026-10-30}
+
+  - id: centerpoint-nuscenes
+    name: CenterPoint (VoxelNet backbone, nuScenes)
+    aliases: [centerpoint]
+    family: CenterPoint
+    role: task_detector
+    tasks: [lidar_3d_detection, 3d_tracking]
+    modalities: [lidar]
+    summary: >-
+      Anchor-free: predicts BEV heatmaps of object centres plus regression of size, height, yaw and
+      velocity; tracking by greedy centre matching with predicted velocity. The de facto nuScenes baseline.
+    paper: {title: "Center-based 3D Object Detection and Tracking", year: 2021, arxiv: "2006.11275", url: "https://arxiv.org/abs/2006.11275"}
+    links:
+      code: https://github.com/tianweiy/CenterPoint
+    licensing:
+      code_license: MIT (original repo, prior knowledge); OpenPCDet / mmdet3d implementations Apache-2.0
+      dataset_terms: nuScenes non-commercial terms for nuScenes weights; Waymo-trained weights generally not redistributed
+      commercial_use: unclear_legal_review
+    io_contract:
+      input: "multi-sweep points (x, y, z, intensity, dt) – typically 10 sweeps on nuScenes"
+      output: "boxes + velocity (vx, vy) for 10 nuScenes classes"
+      coordinate_convention: LiDAR frame; sweeps motion-compensated into the keyframe
+      postprocessing: circle NMS or rotated NMS per class group
+    pretraining: {data: nuScenes / Waymo, domain_fit: automotive}
+    finetuning: {recipe_available: true, peft: unsupported}
+    artifacts:
+      official_pretrained: {status: not_verified, url: "https://github.com/tianweiy/CenterPoint"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified}
+      engine: {status: not_verified, url: "https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution", notes: "CUDA-CenterPoint (prior knowledge; verify)."}
+    deployment:
+      known_traps:
+        - "Sweep count and time-lag channel must match training exactly; dropping dt silently degrades velocity."
+    recommendation_context: Baseline LiDAR detector for nuScenes-style multi-class + tracking.
+    card: cards/centerpoint-nuscenes.md
+    verification:
+      last_verified: 2026-10-30
+      status: not_verified
+      method: Prior knowledge; github.com unreachable from build container.
+
+  - id: pv-rcnn-openpcdet
+    name: PV-RCNN (OpenPCDet)
+    family: PV-RCNN
+    role: task_detector
+    tasks: [lidar_3d_detection]
+    modalities: [lidar]
+    summary: Two-stage point-voxel detector (sparse-conv proposals refined with keypoint features). Accuracy-oriented, slow, hard to deploy.
+    paper: {title: "PV-RCNN: Point-Voxel Feature Set Abstraction for 3D Object Detection", year: 2020, arxiv: "1912.13192", url: "https://arxiv.org/abs/1912.13192"}
+    links: {code: "https://github.com/open-mmlab/OpenPCDet"}
+    licensing: {code_license: Apache-2.0, dataset_terms: KITTI / Waymo terms apply to weights, commercial_use: unclear_legal_review}
+    pretraining: {data: KITTI / Waymo, domain_fit: automotive}
+    finetuning: {recipe_available: true, peft: unsupported}
+    artifacts:
+      official_pretrained: {status: not_verified, url: "https://github.com/open-mmlab/OpenPCDet"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_offered}
+      engine: {status: not_verified}
+    recommendation_context: Accuracy reference for KITTI-style evaluation; rarely the deployment choice.
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: Web search (secondary).
+      evidence:
+        - {claim: "PV-RCNN is in OpenPCDet KITTI and Waymo tables", url: "https://gitee.com/mayix/OpenPCDet", source_type: secondary, accessed: 2026-10-30}
+
+  - id: voxelnext
+    name: VoxelNeXt
+    family: VoxelNeXt
+    role: task_detector
+    tasks: [lidar_3d_detection, 3d_tracking]
+    modalities: [lidar]
+    summary: Fully sparse detector that predicts boxes directly from sparse voxel features (no dense BEV head), efficient at long range.
+    paper: {title: "VoxelNeXt: Fully Sparse VoxelNet for 3D Object Detection and Tracking", year: 2023, arxiv: "2303.11301", url: "https://arxiv.org/abs/2303.11301"}
+    links: {code: "https://github.com/dvlab-research/VoxelNeXt"}
+    licensing: {code_license: Apache-2.0 (prior knowledge), commercial_use: unclear_legal_review}
+    pretraining: {data: nuScenes / Waymo / Argoverse 2, domain_fit: automotive}
+    finetuning: {recipe_available: true, peft: unsupported}
+    artifacts:
+      official_pretrained: {status: not_verified, url: "https://github.com/dvlab-research/VoxelNeXt"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified}
+      engine: {status: not_verified}
+    deployment: {known_traps: ["Fully sparse heads need sparse-conv and sparse max-pool support at inference."]}
+    recommendation_context: Long-range / large-grid scenarios (Argoverse 2) where dense BEV heads are costly.
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: Web search (secondary) – OpenPCDet changelog lists VoxelNeXt support for nuScenes, Waymo, Argoverse 2.
+      evidence:
+        - {claim: "OpenPCDet added VoxelNeXt (nuScenes/Waymo/AV2) 2023-04", url: "https://gitee.com/mayix/OpenPCDet", source_type: secondary, accessed: 2026-10-30}
+
+  - id: dsvt
+    name: DSVT (Dynamic Sparse Voxel Transformer)
+    family: DSVT
+    role: task_detector
+    tasks: [lidar_3d_detection]
+    modalities: [lidar]
+    summary: Transformer backbone over sparse voxels using rotated set partitioning; strong Waymo results with a deployment-friendly design (no custom sparse ops in attention).
+    paper: {title: "DSVT: Dynamic Sparse Voxel Transformer with Rotated Sets", year: 2023, arxiv: "2301.06051", url: "https://arxiv.org/abs/2301.06051"}
+    links: {code: "https://github.com/Haiyang-W/DSVT"}
+    licensing: {commercial_use: unclear_legal_review, notes: Licence not verified. Waymo-trained weights fall under Waymo licence restrictions.}
+    pretraining: {data: Waymo / nuScenes, domain_fit: automotive}
+    finetuning: {recipe_available: true, peft: unknown}
+    artifacts:
+      official_pretrained: {status: not_verified}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified}
+      engine: {status: not_verified, notes: Authors reported a TensorRT deployment path (prior knowledge; verify).}
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: Web search (secondary) – OpenPCDet changelog lists DSVT support (2023-06).
+      evidence:
+        - {claim: "OpenPCDet added DSVT 2023-06-30", url: "https://gitee.com/mayix/OpenPCDet", source_type: secondary, accessed: 2026-10-30}
+
+  # ---------------------------------------------------------------- point-cloud encoders
+  - id: ptv3-pointcept
+    name: Point Transformer V3 (Pointcept checkpoints)
+    aliases: [Pointcept/PointTransformerV3, ptv3]
+    family: Point Transformer
+    role: segmenter
+    tasks: [3d_segmentation, point_cloud_features]
+    modalities: [lidar]
+    summary: >-
+      Serialized-point transformer backbone (space-filling-curve ordering + patch attention). The
+      backbone behind Sonata/Concerto/Utonia. These checkpoints are *supervised* segmentation models,
+      not self-supervised foundation encoders.
+    paper: {title: "Point Transformer V3: Simpler, Faster, Stronger", year: 2024, arxiv: "2312.10035", url: "https://arxiv.org/abs/2312.10035"}
+    links:
+      code: https://github.com/Pointcept/Pointcept
+      model_card: https://huggingface.co/Pointcept/PointTransformerV3
+      weights: https://huggingface.co/Pointcept/PointTransformerV3
+    licensing:
+      weight_license: MIT (HF card)
+      dataset_terms: nuScenes checkpoint inherits nuScenes non-commercial terms
+      commercial_use: unclear_legal_review
+    io_contract:
+      framework: Pointcept (PyTorch, spconv + optional flash-attn)
+      input: grid-sampled points with coord (+ strength/intensity for outdoor configs)
+      output: per-point semantic logits / features
+    pretraining: {data: Supervised on nuScenes / Waymo / ScanNet / S3DIS (separate checkpoints), domain_fit: automotive}
+    benchmarks:
+      - {dataset: nuScenes lidarseg, split: val, metric: mIoU, value: 80.3, claim_type: reported_repo, source: "https://huggingface.co/Pointcept/PointTransformerV3", notes: "4 GPUs, config semseg-pt-v3m1-0-base"}
+      - {dataset: Waymo segmentation, split: val, metric: mIoU, value: 71.2, claim_type: reported_repo, source: "https://huggingface.co/Pointcept/PointTransformerV3", notes: "Log only – Waymo weights not released"}
+    finetuning: {recipe_available: true, peft: experimental}
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/Pointcept/PointTransformerV3/tree/main/nuscenes-semseg-pt-v3m1-0-base"}
+      automotive_finetuned: {status: available_official, url: "https://huggingface.co/Pointcept/PointTransformerV3/tree/main/nuscenes-semseg-pt-v3m1-0-base", notes: The nuScenes checkpoint is itself the automotive model.}
+      quantized: {status: not_found_after_search}
+      onnx_export: {status: not_verified, notes: Serialization + spconv embedding make export non-trivial.}
+      engine: {status: not_verified}
+    recommendation_context: Strong outdoor LiDAR segmentation backbone; starting point for a 3D detector backbone swap.
+    caveats: ["Waymo-trained weights are not released due to Waymo licence (per model card)."]
+    verification:
+      last_verified: 2026-10-30
+      status: verified_primary
+      method: HF model card read + repo file listing.
+      evidence:
+        - {claim: "MIT; checkpoint folders; nuScenes 80.3 / Waymo 71.2 val mIoU; Waymo weights withheld", url: "https://huggingface.co/Pointcept/PointTransformerV3", source_type: model_card, accessed: 2026-10-30}
+
+  - id: sonata
+    name: Sonata (self-supervised PTv3)
+    aliases: [Pointcept/Sonata, facebook/sonata]
+    family: Pointcept SSL
+    role: foundation_encoder
+    tasks: [point_cloud_features]
+    modalities: [lidar]
+    summary: Self-supervised point-cloud representation learning on a PTv3 backbone (self-distillation); strong linear-probe results on 3D scene understanding.
+    paper: {title: "Sonata: Self-Supervised Learning of Reliable Point Representations", year: 2025, arxiv: "2503.16429", url: "https://arxiv.org/abs/2503.16429"}
+    links:
+      code: https://github.com/facebookresearch/sonata
+      model_card: https://huggingface.co/Pointcept/Sonata
+      weights: https://huggingface.co/facebook/sonata
+    licensing:
+      weight_license: "MIT per Pointcept/Sonata card; facebook/sonata repo has no licence metadata"
+      commercial_use: unclear_legal_review
+      notes: The two HF repos disagree / are incomplete. Confirm the licence in the official code repo before use.
+    io_contract:
+      input: coord, color, normal (zeros when unavailable – verify for this model; documented for Concerto/Utonia)
+      output: per-point features (hierarchical, PTv3 encoder)
+    pretraining:
+      data: not verified in this session (paper describes a large multi-dataset 3D mix)
+      domain_fit: unknown
+      notes: Domain fit for spinning automotive LiDAR is not verified – treat as transfer-learning candidate only.
+    size: {params_m: 108.5, source: hub_metadata}
+    finetuning: {recipe_available: true, peft: unknown, notes: Linear probe / decoder probe / full fine-tune in Pointcept configs.}
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/facebook/sonata"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified}
+      engine: {status: not_verified}
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: HF Hub metadata + both model cards (minimal content).
+      evidence:
+        - {claim: "facebook/sonata 108.5M params, no licence tag", url: "https://huggingface.co/facebook/sonata", source_type: hub_metadata, accessed: 2026-10-30}
+        - {claim: "Pointcept/Sonata card licence MIT", url: "https://huggingface.co/Pointcept/Sonata", source_type: model_card, accessed: 2026-10-30}
+
+  - id: concerto
+    name: Concerto (joint 2D-3D SSL)
+    aliases: [Pointcept/Concerto]
+    family: Pointcept SSL
+    role: foundation_encoder
+    tasks: [point_cloud_features]
+    modalities: [lidar, camera_mono]
+    summary: >-
+      3D self-distillation plus 2D-3D cross-modal joint embedding (DINOv2 or SigLIP2 image teacher).
+      Ships an outdoor-pretrained variant; default checkpoints are a pre-release of Utonia.
+    paper: {title: "Concerto: Joint 2D-3D Self-Supervised Learning Emerges Spatial Representations", year: 2025, arxiv: "2510.23607", url: "https://arxiv.org/abs/2510.23607"}
+    links:
+      project: https://pointcept.github.io/Concerto
+      code: https://github.com/Pointcept/Concerto
+      model_card: https://huggingface.co/Pointcept/Concerto
+      weights: https://huggingface.co/Pointcept/Concerto
+    licensing: {weight_license: CC-BY-NC-4.0, commercial_use: non_commercial, gated: false}
+    io_contract:
+      input: coord, color, normal; set color/normal to zeros if unavailable (model card)
+      output: per-point features; separate linear-probe head files provided
+    pretraining:
+      data: Indoor scenes for default; `concerto_large_outdoor.pth` uses an outdoor pretraining mix (card)
+      domain_fit: mixed_includes_automotive
+      notes: Use the outdoor checkpoint for LiDAR experiments; exact outdoor datasets not verified here.
+    finetuning: {recipe_available: true, peft: unknown}
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/Pointcept/Concerto"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified}
+      engine: {status: not_verified}
+    verification:
+      last_verified: 2026-10-30
+      status: verified_primary
+      method: HF model card read.
+      evidence:
+        - {claim: "CC-BY-NC-4.0; checkpoint list incl. outdoor variant; zero colour/normal guidance", url: "https://huggingface.co/Pointcept/Concerto", source_type: model_card, accessed: 2026-10-30}
+
+  - id: utonia
+    name: Utonia
+    aliases: [Pointcept/Utonia]
+    family: Pointcept SSL
+    role: foundation_encoder
+    tasks: [point_cloud_features]
+    modalities: [lidar]
+    summary: >-
+      Single self-supervised PTv3 encoder trained jointly across remote sensing, outdoor LiDAR,
+      indoor RGB-D, CAD objects and video-lifted point clouds. The most automotive-relevant
+      Pointcept SSL encoder at the research baseline date – but non-commercial.
+    paper: {title: "Utonia: Toward One Encoder for All Point Clouds", year: 2026, arxiv: "2603.03283", url: "https://arxiv.org/abs/2603.03283"}
+    links:
+      project: https://pointcept.github.io/Utonia/
+      code: https://github.com/Pointcept/Utonia
+      model_card: https://huggingface.co/Pointcept/Utonia
+      weights: https://huggingface.co/Pointcept/Utonia
+    licensing: {weight_license: CC-BY-NC-4.0, commercial_use: non_commercial, gated: false}
+    io_contract:
+      framework: Utonia inference package / Pointcept for evaluation
+      input: "[coord, color, normal]; zeros for missing color/normal (card). LiDAR intensity is not an input channel by default."
+      output: per-point hierarchical features; `utonia.pth` (inference) vs `pretrain-utonia-v1m1-0-base_stagev2.pth` (Pointcept eval)
+    pretraining:
+      data: Multi-domain (incl. outdoor LiDAR) per abstract; dataset list not transcribed
+      domain_fit: mixed_includes_automotive
+    finetuning:
+      recipe_available: true
+      peft: unknown
+      notes: Card recommends distilling small/tiny variants from utonia.pth on in-domain data.
+    artifacts:
+      official_pretrained: {status: available_official, url: "https://huggingface.co/Pointcept/Utonia"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified}
+      engine: {status: not_verified}
+    recommendation_context: Pretrained point-cloud encoder candidate with explicit outdoor-LiDAR pretraining (research use).
+    card: cards/utonia.md
+    caveats:
+      - "No automotive 3D *detection* head is shipped; a detection adapter is your work (see card)."
+      - "Intensity channel dropped by default – measure the cost on your LiDAR."
+    verification:
+      last_verified: 2026-10-30
+      status: verified_primary
+      method: HF model card read + Hub metadata.
+      evidence:
+        - {claim: "CC-BY-NC-4.0; inputs; checkpoint names; domains incl. outdoor LiDAR", url: "https://huggingface.co/Pointcept/Utonia", source_type: model_card, accessed: 2026-10-30}
+
+  # ---------------------------------------------------------------- camera-only 3D / temporal
+  - id: bevformer
+    name: BEVFormer
+    family: BEVFormer
+    role: temporal_detector
+    tasks: [camera_3d_detection, bev_map_segmentation]
+    modalities: [camera_multi_view]
+    summary: Dense BEV queries attend to multi-camera features (spatial cross-attention) and to the previous BEV (temporal self-attention).
+    paper: {title: "BEVFormer: Learning Bird's-Eye-View Representation from Multi-Camera Images via Spatiotemporal Transformers", year: 2022, arxiv: "2203.17270", url: "https://arxiv.org/abs/2203.17270"}
+    links: {code: "https://github.com/fundamentalvision/BEVFormer"}
+    licensing: {code_license: Apache-2.0 (prior knowledge), dataset_terms: nuScenes non-commercial, commercial_use: unclear_legal_review}
+    io_contract:
+      input: 6 surround images + intrinsics/extrinsics (lidar2img) + ego-motion between frames
+      output: nuScenes 10-class 3D boxes with velocity
+    pretraining: {data: nuScenes (backbone often FCOS3D-initialised), domain_fit: automotive}
+    finetuning: {recipe_available: true, peft: unsupported}
+    artifacts:
+      official_pretrained: {status: not_verified, url: "https://github.com/fundamentalvision/BEVFormer"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified}
+      engine: {status: not_verified}
+    deployment:
+      known_traps: ["Deformable attention + temporal BEV state; export requires custom plugins and explicit state I/O."]
+    verification:
+      last_verified: 2026-10-30
+      status: not_verified
+      method: Prior knowledge.
+
+  - id: streampetr
+    name: StreamPETR
+    family: PETR
+    role: temporal_detector
+    tasks: [camera_3d_detection]
+    modalities: [camera_multi_view]
+    summary: Sparse object queries with 3D position embeddings, propagated frame-to-frame (object-centric temporal memory). Efficient long-range temporal fusion.
+    paper: {title: "Exploring Object-Centric Temporal Modeling for Efficient Multi-View 3D Object Detection", year: 2023, arxiv: "2303.11926", url: "https://arxiv.org/abs/2303.11926"}
+    links: {code: "https://github.com/exiawsh/StreamPETR"}
+    licensing: {commercial_use: unclear_legal_review, notes: Repository licence not verified.}
+    pretraining: {data: nuScenes, domain_fit: automotive}
+    finetuning: {recipe_available: true, peft: unsupported}
+    artifacts:
+      official_pretrained: {status: not_verified, url: "https://github.com/exiawsh/StreamPETR"}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified}
+      engine: {status: not_verified}
+    deployment:
+      known_traps: ["Query memory queue is state across frames: inference must replay the ego-pose alignment used in training."]
+    verification:
+      last_verified: 2026-10-30
+      status: not_verified
+      method: Repo URL confirmed via the Sparse4D README (secondary); licence unknown.
+
+  - id: sparse4d-v3
+    name: Sparse4D v3
+    family: Sparse4D
+    role: temporal_detector
+    tasks: [camera_3d_detection, 3d_tracking]
+    modalities: [camera_multi_view]
+    summary: Fully sparse multi-view detector with deformable 4D aggregation and instance-level temporal propagation; v3 adds end-to-end tracking.
+    paper: {title: "Sparse4D v3: Advancing End-to-End 3D Detection and Tracking", year: 2023, arxiv: "2311.11722", url: "https://arxiv.org/abs/2311.11722"}
+    links: {code: "https://github.com/HorizonRobotics/Sparse4D"}
+    licensing: {code_license: MIT (secondary), dataset_terms: nuScenes non-commercial, commercial_use: unclear_legal_review}
+    pretraining: {data: nuScenes, domain_fit: automotive}
+    finetuning: {recipe_available: true, peft: unsupported}
+    artifacts:
+      official_pretrained: {status: not_verified, url: "https://github.com/HorizonRobotics/Sparse4D", notes: v3.0 release checkpoint reported on GitHub releases (secondary).}
+      automotive_finetuned: {status: not_verified}
+      quantized: {status: not_verified}
+      onnx_export: {status: not_verified}
+      engine: {status: not_verified}
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: Web search (secondary aggregator).
+      evidence:
+        - {claim: "MIT licence; v3 paper; release checkpoint", url: "https://awesome.ecosyste.ms/projects/github.com%2FHorizonRobotics%2FSparse4D", source_type: secondary, accessed: 2026-10-30}
+
+  # ---------------------------------------------------------------- camera-LiDAR fusion
+  - id: bevfusion-mit
+    name: BEVFusion (MIT HAN Lab)
+    aliases: [bevfusion]
+    family: BEVFusion
+    role: fusion_model
+    tasks: [camera_lidar_3d_detection, bev_map_segmentation]
+    modalities: [camera_multi_view, lidar]
+    summary: >-
+      Lifts camera features to BEV (LSS-style depth distribution + efficient BEV pooling), fuses with a
+      sparse-conv LiDAR BEV map by concatenation + conv, then a TransFusion-style head.
+    paper: {title: "BEVFusion: Multi-Task Multi-Sensor Fusion with Unified Bird's-Eye View Representation", year: 2022, arxiv: "2205.13542", url: "https://arxiv.org/abs/2205.13542"}
+    links: {code: "https://github.com/mit-han-lab/bevfusion"}
+    licensing:
+      code_license: Apache-2.0 (secondary); repository archived
+      dataset_terms: nuScenes non-commercial for official weights
+      commercial_use: unclear_legal_review
+    io_contract:
+      input: 6 images + LiDAR sweeps + calibration (camera intrinsics, lidar2camera, ego poses) + image augmentation matrices
+      output: 3D boxes (nuScenes 10 classes) and/or BEV map segmentation
+    pretraining: {data: nuScenes, domain_fit: automotive}
+    finetuning: {recipe_available: true, peft: unsupported}
+    artifacts:
+      official_pretrained: {status: not_verified, url: "https://github.com/mit-han-lab/bevfusion"}
+      automotive_finetuned: {status: available_community, url: "https://huggingface.co/AutowareFoundation/bevfusion", notes: "Autoware ONNX models (LiDAR-only and camera-LiDAR, 5 classes, 'T4base_120m' family) – different training data and classes from the paper."}
+      quantized: {status: not_verified, notes: "NVIDIA CUDA-BEVFusion reports INT8/FP16 TensorRT (secondary)."}
+      onnx_export: {status: available_community, url: "https://huggingface.co/AutowareFoundation/bevfusion", notes: "Pre/post-processing (voxelization, NMS) run outside the ONNX graphs in the Autoware node."}
+      engine: {status: build_recipe_available, url: "https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution", notes: "CUDA-BEVFusion; Autoware builds TensorRT engines from ONNX on first launch."}
+    deployment:
+      export_formats: [onnx]
+      runtimes: [pytorch, tensorrt, autoware_ros2]
+      known_traps:
+        - "Sparse conv needs TensorRT plugins (Autoware: spconv_cpp / autoware_tensorrt_plugins)."
+        - "BEV pooling is a custom CUDA op; camera-to-BEV geometry must be recomputed if calibration changes."
+        - "Camera images undistorted/cropped (Autoware ROI 576x384 from 1440x1080) – resolution changes need retraining or careful re-calibration."
+    recommendation_context: Reference camera-LiDAR fusion model with the most mature public deployment paths.
+    card: cards/bevfusion-mit.md
+    caveats:
+      - "Qualcomm AI Hub publishes a camera-only BEVFusion-derived export (huggingface.co/qualcomm/BEVFusion) – different model scope; do not confuse."
+    verification:
+      last_verified: 2026-10-30
+      status: partially_verified
+      method: HF model cards (Autoware, Qualcomm) read; MIT repo licence and NVIDIA deployment via web search (secondary).
+      evidence:
+        - {claim: "Autoware BEVFusion ONNX, Apache-2.0, TensorRT engines built on first launch, spconv plugins", url: "https://huggingface.co/AutowareFoundation/bevfusion", source_type: model_card, accessed: 2026-10-30}
+        - {claim: "mit-han-lab/bevfusion Apache-2.0, archived; points to NVIDIA TensorRT deployment", url: "https://awesome.ecosyste.ms/projects/github.com%2Fmit-han-lab%2Fbevfusion", source_type: secondary, accessed: 2026-10-30}
+        - {claim: "Qualcomm camera-BEV export, Apache-2.0", url: "https://huggingface.co/qualcomm/BEVFusion", source_type: model_card, accessed: 2026-10-30}

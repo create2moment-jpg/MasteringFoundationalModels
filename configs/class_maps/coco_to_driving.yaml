@@ -1,0 +1,28 @@
+# Mapping from COCO (80-class, contiguous 0-based ids as used by HF RT-DETR / DETR heads)
+# to a minimal driving taxonomy. Unmapped COCO classes are DROPPED, not merged into "other".
+#
+# Rules:
+#  * Report AP only for driving classes that have a mapping AND ground truth in the eval set.
+#  * nuImages / BDD100K / nuScenes have classes with no COCO counterpart (traffic cone,
+#    barrier, construction vehicle, trailer, traffic sign) – a COCO model scores 0 there by
+#    construction; that is a taxonomy gap, not a model failure.
+#  * "rider" in BDD100K is a person ON a bicycle/motorcycle; COCO has no rider class.
+#    Do not map COCO "person" to both pedestrian and rider.
+#
+# Ids verified against the HF config id2label of PekingU/rtdetr_v2_r50vd? -> NOT verified in
+# this session (no torch/network). Check `model.config.id2label` before use; the
+# lab script asserts the names match.
+
+source: coco80
+target: driving_min
+mapping:
+  # coco_id: [coco_name, driving_class]
+  0: [person, pedestrian]
+  1: [bicycle, bicycle]
+  2: [car, car]
+  3: [motorcycle, motorcycle]
+  5: [bus, bus]
+  7: [truck, truck]
+  9: [traffic light, traffic_light]
+  11: [stop sign, traffic_sign]
+target_classes_without_source: [traffic_cone, barrier, construction_vehicle, trailer, rider]

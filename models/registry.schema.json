@@ -1,0 +1,921 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "status": {
+          "$ref": "#/$defs/ArtifactStatus"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "ArtifactStatus": {
+      "enum": [
+        "available_official",
+        "available_community",
+        "community_conversion",
+        "build_recipe_available",
+        "requires_local_build",
+        "gated",
+        "not_offered",
+        "not_found_after_search",
+        "not_verified",
+        "not_applicable"
+      ],
+      "title": "ArtifactStatus",
+      "type": "string"
+    },
+    "Artifacts": {
+      "additionalProperties": false,
+      "description": "The five artifact kinds the prompt requires to be kept distinct.",
+      "properties": {
+        "automotive_finetuned": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "engine": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "official_pretrained": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "onnx_export": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "quantized": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "official_pretrained",
+        "automotive_finetuned",
+        "quantized",
+        "onnx_export",
+        "engine"
+      ],
+      "title": "Artifacts",
+      "type": "object"
+    },
+    "Benchmark": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_type": {
+          "$ref": "#/$defs/ClaimType"
+        },
+        "dataset": {
+          "title": "Dataset",
+          "type": "string"
+        },
+        "metric": {
+          "title": "Metric",
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "protocol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protocol"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "split": {
+          "title": "Split",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "dataset",
+        "split",
+        "metric",
+        "claim_type"
+      ],
+      "title": "Benchmark",
+      "type": "object"
+    },
+    "ClaimType": {
+      "enum": [
+        "reported_paper",
+        "reported_repo",
+        "reproduced_local"
+      ],
+      "title": "ClaimType",
+      "type": "string"
+    },
+    "CommercialUse": {
+      "enum": [
+        "permissive",
+        "conditional",
+        "non_commercial",
+        "copyleft",
+        "unclear_legal_review"
+      ],
+      "title": "CommercialUse",
+      "type": "string"
+    },
+    "Deployment": {
+      "additionalProperties": false,
+      "properties": {
+        "export_formats": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Export Formats",
+          "type": "array"
+        },
+        "known_traps": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Known Traps",
+          "type": "array"
+        },
+        "runtimes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Runtimes",
+          "type": "array"
+        }
+      },
+      "title": "Deployment",
+      "type": "object"
+    },
+    "DomainFit": {
+      "description": "How the *pretraining* data relates to outdoor driving scenes.",
+      "enum": [
+        "automotive",
+        "mixed_includes_automotive",
+        "generic_web_images",
+        "generic_detection_coco_like",
+        "indoor_or_object_3d",
+        "unknown"
+      ],
+      "title": "DomainFit",
+      "type": "string"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "accessed": {
+          "format": "date",
+          "title": "Accessed",
+          "type": "string"
+        },
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "url": {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim",
+        "url",
+        "source_type",
+        "accessed"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "FineTuning": {
+      "additionalProperties": false,
+      "properties": {
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "peft": {
+          "$ref": "#/$defs/PeftSupport",
+          "default": "unknown"
+        },
+        "recipe_available": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recipe Available"
+        }
+      },
+      "title": "FineTuning",
+      "type": "object"
+    },
+    "IOContract": {
+      "additionalProperties": false,
+      "properties": {
+        "coordinate_convention": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coordinate Convention"
+        },
+        "framework": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Framework"
+        },
+        "input": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input"
+        },
+        "output": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output"
+        },
+        "postprocessing": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Postprocessing"
+        },
+        "preprocessing": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Preprocessing"
+        }
+      },
+      "title": "IOContract",
+      "type": "object"
+    },
+    "Licensing": {
+      "additionalProperties": false,
+      "properties": {
+        "code_license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code License"
+        },
+        "commercial_use": {
+          "$ref": "#/$defs/CommercialUse",
+          "default": "unclear_legal_review"
+        },
+        "dataset_terms": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dataset Terms"
+        },
+        "gated": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gated"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "weight_license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight License"
+        }
+      },
+      "title": "Licensing",
+      "type": "object"
+    },
+    "Links": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "model_card": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Card"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision"
+        },
+        "weights": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weights"
+        }
+      },
+      "title": "Links",
+      "type": "object"
+    },
+    "Modality": {
+      "enum": [
+        "camera_mono",
+        "camera_multi_view",
+        "lidar",
+        "text",
+        "radar"
+      ],
+      "title": "Modality",
+      "type": "string"
+    },
+    "ModelEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "artifacts": {
+          "$ref": "#/$defs/Artifacts"
+        },
+        "benchmarks": {
+          "items": {
+            "$ref": "#/$defs/Benchmark"
+          },
+          "title": "Benchmarks",
+          "type": "array"
+        },
+        "card": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Card"
+        },
+        "caveats": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Caveats",
+          "type": "array"
+        },
+        "deployment": {
+          "$ref": "#/$defs/Deployment"
+        },
+        "family": {
+          "title": "Family",
+          "type": "string"
+        },
+        "finetuning": {
+          "$ref": "#/$defs/FineTuning"
+        },
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9_\\-.]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "io_contract": {
+          "$ref": "#/$defs/IOContract"
+        },
+        "licensing": {
+          "$ref": "#/$defs/Licensing"
+        },
+        "links": {
+          "$ref": "#/$defs/Links"
+        },
+        "modalities": {
+          "items": {
+            "$ref": "#/$defs/Modality"
+          },
+          "minItems": 1,
+          "title": "Modalities",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "open_vocabulary": {
+          "default": false,
+          "title": "Open Vocabulary",
+          "type": "boolean"
+        },
+        "paper": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Paper"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pretraining": {
+          "$ref": "#/$defs/Pretraining"
+        },
+        "recommendation_context": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recommendation Context"
+        },
+        "role": {
+          "$ref": "#/$defs/Role"
+        },
+        "size": {
+          "$ref": "#/$defs/Size"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/Task"
+          },
+          "minItems": 1,
+          "title": "Tasks",
+          "type": "array"
+        },
+        "verification": {
+          "$ref": "#/$defs/Verification"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "family",
+        "role",
+        "tasks",
+        "modalities",
+        "summary",
+        "links",
+        "licensing",
+        "artifacts",
+        "verification"
+      ],
+      "title": "ModelEntry",
+      "type": "object"
+    },
+    "Paper": {
+      "additionalProperties": false,
+      "properties": {
+        "arxiv": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}\\.\\d{4,5}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Arxiv"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Year"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "title": "Paper",
+      "type": "object"
+    },
+    "PeftSupport": {
+      "enum": [
+        "supported",
+        "experimental",
+        "unsupported",
+        "unknown"
+      ],
+      "title": "PeftSupport",
+      "type": "string"
+    },
+    "Pretraining": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Data"
+        },
+        "domain_fit": {
+          "$ref": "#/$defs/DomainFit",
+          "default": "unknown"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "title": "Pretraining",
+      "type": "object"
+    },
+    "Role": {
+      "description": "What the model *is*, independent of what it can be adapted to do.",
+      "enum": [
+        "foundation_encoder",
+        "task_detector",
+        "open_vocab_detector",
+        "segmenter",
+        "fusion_model",
+        "temporal_detector",
+        "tracker"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "Size": {
+      "additionalProperties": false,
+      "properties": {
+        "params_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params M"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Size",
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "paper",
+        "official_repo",
+        "model_card",
+        "official_docs",
+        "hub_metadata",
+        "secondary",
+        "prior_knowledge"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    },
+    "Task": {
+      "enum": [
+        "2d_detection",
+        "open_vocabulary_2d_detection",
+        "2d_segmentation",
+        "image_features",
+        "point_cloud_features",
+        "lidar_3d_detection",
+        "camera_3d_detection",
+        "camera_lidar_3d_detection",
+        "3d_segmentation",
+        "bev_map_segmentation",
+        "3d_tracking"
+      ],
+      "title": "Task",
+      "type": "string"
+    },
+    "Verification": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "last_verified": {
+          "format": "date",
+          "title": "Last Verified",
+          "type": "string"
+        },
+        "method": {
+          "title": "Method",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/VerificationStatus"
+        }
+      },
+      "required": [
+        "last_verified",
+        "status",
+        "method"
+      ],
+      "title": "Verification",
+      "type": "object"
+    },
+    "VerificationStatus": {
+      "enum": [
+        "verified_primary",
+        "partially_verified",
+        "not_verified"
+      ],
+      "title": "VerificationStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "models": {
+      "items": {
+        "$ref": "#/$defs/ModelEntry"
+      },
+      "title": "Models",
+      "type": "array"
+    },
+    "research_baseline": {
+      "format": "date",
+      "title": "Research Baseline",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "research_baseline",
+    "models"
+  ],
+  "title": "Registry",
+  "type": "object"
+}
